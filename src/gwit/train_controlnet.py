@@ -673,6 +673,7 @@ def make_train_dataset(args, tokenizer, accelerator):
     if args.subject_num != 0:
         dataset = dataset.filter(lambda x: x['subject'] == args.subject_num)
 
+# train_dataset : dict_keys: dict_keys(['image', 'conditioning_image (128,512)', 'caption ('image of a Apple')', 'eeg_no_resample', 'label', 'subject'])
     column_names = dataset["train"].column_names
 
     # 6. Get the column names for input/target.
@@ -760,13 +761,13 @@ def make_train_dataset(args, tokenizer, accelerator):
     else:
         from dataset_EEG.name_map_ID import id_to_caption_TVIZ as id_to_caption
         print(id_to_caption)
-    model     = EEGFeatNet(n_features=128, projection_dim=128, num_layers=4).to("cuda") if "CVPR" in args.dataset_name else  \
+    model     = EEGFeatNet(n_features=128, projection_dim=128, num_layers=4).to("cuda:0") if "CVPR" in args.dataset_name else  \
                 EEGFeatNet(n_classes=10, in_channels=14,\
                            n_features=128, projection_dim=128,\
-                           num_layers=4).to("cuda")
+                           num_layers=4).to("cuda:0")
     
     
-    model     = torch.nn.DataParallel(model).to("cuda")
+    model     = torch.nn.DataParallel(model).to("cuda:0")
     import pickle
 
     # Load the model from the file
@@ -777,6 +778,9 @@ def make_train_dataset(args, tokenizer, accelerator):
         else base_dir+'/EEGStyleGAN-ADA/EEG2Feat/Triplet_LSTM/Thoughtviz/EXPERIMENT_1/bestckpt/eegfeat_all_0.7212357954545454.pth' 
     model.load_state_dict(torch.load(ckpt_path)['model_state_dict'])
 
+
+# eeg에서 나온 값을 기반으로 label 예측하고 해당 caption을 return
+# caption_from classifier
     def get_caption_from_classifier(eeg, labels):
         #TODO
         # import pdb
@@ -911,6 +915,8 @@ def main(args):
 
     # Load scheduler and models
     noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
+    
+    # CLIPTextModel
     text_encoder = text_encoder_cls.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision, variant=args.variant
     )
